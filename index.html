@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reporte Ciudadano - ODS 11</title>
 
-    <!-- Leaflet (mapa) -->
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -16,7 +16,6 @@
             font-family: Arial, sans-serif;
         }
 
-        /* Pantalla tipo app */
         .app {
             max-width: 450px;
             margin: auto;
@@ -43,14 +42,6 @@
 
         .active { display: block; }
 
-        input, textarea, select {
-            width: 100%;
-            padding: 10px;
-            margin: 8px 0 15px;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-        }
-
         button {
             width: 100%;
             padding: 12px;
@@ -72,10 +63,10 @@
             border-top: 1px solid #ccc;
         }
 
-        .menu button {
-            width: auto;
-            padding: 10px 20px;
-            background: #007bff;
+        #map, #map-lista {
+            height: 250px;
+            border-radius: 10px;
+            margin-top: 10px;
         }
 
         .report {
@@ -94,12 +85,6 @@
             margin-top: 10px;
         }
 
-        #map {
-            height: 250px;
-            border-radius: 10px;
-            margin-top: 10px;
-        }
-
     </style>
 </head>
 <body>
@@ -108,10 +93,10 @@
 
     <header>Reporte Ciudadano - ODS 11</header>
 
-    <!-- Pantalla Inicio -->
+    <!-- Inicio -->
     <div id="inicio" class="screen active">
         <h2>Bienvenido</h2>
-        <p>Esta app permite reportar problemas en tu comunidad como basura, baches, vandalismo, etc.</p>
+        <p>App para reportar problemas en tu comunidad (baches, basura, etc.).</p>
         <button onclick="cambiarPantalla('nuevo')">Crear reporte</button>
         <button onclick="cambiarPantalla('lista')">Ver reportes</button>
     </div>
@@ -120,7 +105,7 @@
     <div id="nuevo" class="screen">
         <h2>Nuevo Reporte</h2>
 
-        <label>Tipo de problema:</label>
+        <label>Tipo:</label>
         <select id="tipo">
             <option value="Baches">Baches</option>
             <option value="Basura">Basura</option>
@@ -134,22 +119,22 @@
 
         <label>Subir imagen:</label>
         <input type="file" id="foto" accept="image/*">
-
         <img id="preview-img" class="img-preview" style="display:none;">
 
-        <label>Ubicación en el mapa:</label>
+        <label>Seleccionar ubicación:</label>
         <div id="map"></div>
 
-        <button onclick="guardarReporte()">Guardar Reporte</button>
+        <button onclick="guardarReporte()">Guardar</button>
     </div>
 
     <!-- Lista de reportes -->
     <div id="lista" class="screen">
         <h2>Reportes Guardados</h2>
+        <div id="map-lista"></div>
         <div id="contenedor-reportes"></div>
     </div>
 
-    <!-- Menú -->
+    <!-- Menú inferior -->
     <div class="menu">
         <button onclick="cambiarPantalla('inicio')">Inicio</button>
         <button onclick="cambiarPantalla('nuevo')">Nuevo</button>
@@ -159,13 +144,21 @@
 </div>
 
 <script>
-    // Cambiar pantallas
+
+    /* =======================
+       CAMBIAR PANTALLAS
+       =======================*/
     function cambiarPantalla(id) {
         document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
         document.getElementById(id).classList.add("active");
+
+        if (id === "nuevo") inicializarMapaNuevo();
+        if (id === "lista") initMapaLista();
     }
 
-    // Previsualización de imagen
+    /* =======================
+       VISTA PREVIA IMAGEN
+       =======================*/
     document.getElementById("foto").addEventListener("change", function () {
         const file = this.files[0];
         if (!file) return;
@@ -179,29 +172,45 @@
         reader.readAsDataURL(file);
     });
 
-    // Mapa Interactivo
-    let lat = 0, lng = 0;
-    const map = L.map('map').setView([19.4326, -99.1332], 13);
-    let marker;
+    /* =======================
+       MAPA PARA CREAR REPORTE
+       =======================*/
+    let lat = null, lng = null;
+    let mapNuevo = null;
+    let markerNuevo = null;
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+    function inicializarMapaNuevo() {
+        setTimeout(() => {
+            if (!mapNuevo) {
+                mapNuevo = L.map("map").setView([19.4326, -99.1332], 13);
 
-    map.on("click", function (e) {
-        lat = e.latlng.lat;
-        lng = e.latlng.lng;
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                    maxZoom: 19
+                }).addTo(mapNuevo);
 
-        if (marker) marker.remove();
-        marker = L.marker([lat, lng]).addTo(map);
-    });
+                mapNuevo.on("click", (e) => {
+                    lat = e.latlng.lat;
+                    lng = e.latlng.lng;
 
-    // Guardar reporte
+                    if (markerNuevo) markerNuevo.remove();
+                    markerNuevo = L.marker([lat, lng]).addTo(mapNuevo);
+                });
+            }
+
+            mapNuevo.invalidateSize();
+        }, 300);
+    }
+
+    /* =======================
+       GUARDAR REPORTE
+       =======================*/
     function guardarReporte() {
         const tipo = document.getElementById("tipo").value;
         const descripcion = document.getElementById("descripcion").value;
         const foto = document.getElementById("preview-img").src;
 
-        if (descripcion.trim() === "" || !lat || !lng) {
-            alert("Completa todos los campos y selecciona el mapa.");
+        if (!descripcion.trim() || lat === null || lng === null) {
+            alert("Completa todo y selecciona un punto en el mapa.");
             return;
         }
 
@@ -219,11 +228,18 @@
         localStorage.setItem("reportes", JSON.stringify(lista));
 
         alert("Reporte guardado ✔️");
+
+        document.getElementById("descripcion").value = "";
+        document.getElementById("preview-img").style.display = "none";
+        lat = lng = null;
+
         cambiarPantalla("lista");
         mostrarReportes();
     }
 
-    // Mostrar reportes guardados
+    /* =======================
+       MOSTRAR REPORTES LISTA
+       =======================*/
     function mostrarReportes() {
         const cont = document.getElementById("contenedor-reportes");
         cont.innerHTML = "";
@@ -240,19 +256,53 @@
                 <p>${r.descripcion}</p>
                 ${r.foto ? `<img src="${r.foto}" class="img-preview">` : ""}
                 <p><strong>Ubicación:</strong> ${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}</p>
-                <button onclick="eliminarReporte(${i})" style="background:#d9534f">Eliminar</button>
+                <button style="background:#d9534f" onclick="eliminarReporte(${i})">Eliminar</button>
             `;
 
             cont.appendChild(div);
         });
     }
 
-    // Eliminar reporte
+    /* =======================
+       MAPA CON TODOS LOS REPORTES
+       =======================*/
+    let mapLista = null;
+
+    function initMapaLista() {
+        setTimeout(() => {
+            const lista = JSON.parse(localStorage.getItem("reportes")) || [];
+
+            if (!mapLista) {
+                mapLista = L.map("map-lista").setView([19.4326, -99.1332], 12);
+
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                    maxZoom: 19
+                }).addTo(mapLista);
+            }
+
+            mapLista.eachLayer(layer => {
+                if (layer instanceof L.Marker) mapLista.removeLayer(layer);
+            });
+
+            lista.forEach(r => {
+                L.marker([r.lat, r.lng])
+                    .addTo(mapLista)
+                    .bindPopup(`<strong>${r.tipo}</strong><br>${r.descripcion}`);
+            });
+
+            mapLista.invalidateSize();
+        }, 300);
+    }
+
+    /* =======================
+       ELIMINAR REPORTE
+       =======================*/
     function eliminarReporte(i) {
         let lista = JSON.parse(localStorage.getItem("reportes")) || [];
         lista.splice(i, 1);
         localStorage.setItem("reportes", JSON.stringify(lista));
         mostrarReportes();
+        initMapaLista();
     }
 
     mostrarReportes();
@@ -260,3 +310,4 @@
 
 </body>
 </html>
+
